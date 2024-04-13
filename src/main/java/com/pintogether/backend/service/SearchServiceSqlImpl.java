@@ -8,8 +8,6 @@ import com.pintogether.backend.exception.CustomException;
 import com.pintogether.backend.model.StatusCode;
 import com.pintogether.backend.repository.*;
 import com.pintogether.backend.util.CoordinateConverter;
-import com.pintogether.backend.util.DateConverter;
-import lombok.AllArgsConstructor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -22,7 +20,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
-public class SqlPlaceSearchImpl implements SearchService {
+public class SearchServiceSqlImpl implements SearchService {
 
     private final PlaceRepository placeRepository;
     private final PinRepository pinRepository;
@@ -33,6 +31,7 @@ public class SqlPlaceSearchImpl implements SearchService {
     private final PlaceService placeService;
     private final MemberRepository memberRepository;
     private final MemberService memberService;
+    private final FollowingService followingService;
     @Transactional
     public List<ShowPlaceResponseDTO> searchPlaces(Member member, String query, int page, int size, String filter) {
         if (member != null) {
@@ -133,7 +132,7 @@ public class SqlPlaceSearchImpl implements SearchService {
                     .toList();
         }
         Pageable pageable = PageRequest.of(page, size);
-        Page<Pin> foundPins = pinRepository.findPinsByReviewContainingOrPinTagsTagContainingOrderByIdDesc(pageable, query, query);
+        Page<Pin> foundPins = pinRepository.findByQuery(pageable, query, query);
         return foundPins.stream()
                 .map(Pin::toShowPinResponseDTO)
                 .toList();
@@ -177,21 +176,23 @@ public class SqlPlaceSearchImpl implements SearchService {
     }
 
     @Transactional
-    public List<ShowSimpleMemberResponseDTO> searchMembers(Member member, String query, int page, int size) {
+    public List<ShowSearchMemberResponseDTO> searchMembers(Member member, String query, int page, int size) {
         if (member != null) {
             this.saveHistory(member, query, SearchType.MEMBER);
         }
         Pageable pageable = PageRequest.of(page, size);
         Page<Member> foundMembers = memberRepository.findMembersByMembernameContainingOrNameContaining(pageable, query);
-        List<ShowSimpleMemberResponseDTO> showSimpleMemberResponseDTOs = foundMembers.stream()
-                .map(m -> ShowSimpleMemberResponseDTO.builder()
+        List<ShowSearchMemberResponseDTO> showSearchMemberResponseDTOs = foundMembers.stream()
+                .map(m -> ShowSearchMemberResponseDTO.builder()
                         .id(m.getId())
                         .membername(m.getMembername())
                         .name(m.getName())
                         .avatar(m.getAvatar())
+                        .isFollowed(member != null ? followingService.checkIfFollow(member.getId(), m.getId()) : false)
                         .collectionCnt(memberService.getCollectionCnt(m.getId()))
                         .build())
                 .collect(Collectors.toList());
-        return showSimpleMemberResponseDTOs;
+        return showSearchMemberResponseDTOs;
     }
+
 }
